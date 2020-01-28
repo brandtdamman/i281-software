@@ -349,9 +349,8 @@ def parseCode(code_lines):
         machine_code += machine_instruction + '\n'
         line_number += 1
 
-#    # Removes an extra newline character.
-#    return machine_code[:-1]
-    return machine_code
+    # Removes an extra newline character.
+    return machine_code[:-1]
 
 def interpretBracket(tokens, line_number, left_bracket='[', right_bracket=']',
                     is_there_register=False, throw_boundry_error=True):
@@ -518,23 +517,23 @@ def parseINPUTC(tokens, line_number):
 def parseINPUTCF(tokens, line_number):
     confirmInstructionLength(len(tokens), 3, 'INPUTCF', line_number)
     results = interpretBracket(tokens, line_number, is_there_register=True)
-    machine_code = results[2] # Register value
+    machine_code = results.register_value
     machine_code += '01_'
-    machine_code += results[0] # Data address
+    machine_code += results.data_address
     return machine_code
 
 def parseINPUTD(tokens, line_number):
     confirmInstructionLength(len(tokens), 3, 'INPUTD', line_number)
     machine_code = '00_10_'
-    machine_code += interpretBracket(tokens, line_number)[0]
+    machine_code += interpretBracket(tokens, line_number).data_address
     return machine_code
 
 def parseINPUTDF(tokens, line_number):
     confirmInstructionLength(len(tokens), 3, 'INPUTDF', line_number)
     results = interpretBracket(tokens, line_number, is_there_register=True)
-    machine_code = results[2] # Register value
+    machine_code = results.register_value
     machine_code += '11_'
-    machine_code += results[0] # Data address
+    machine_code += results.data_address
     return machine_code
 
 def parseMOVE(tokens, line_number):
@@ -555,7 +554,7 @@ def parseLOADP(tokens, line_number):
     machine_code += '00_'
 
     machine_code += interpretBracket(tokens[2:], line_number, left_bracket='{', right_bracket='}',
-                                    throw_boundry_error=False)[0]
+                                    throw_boundry_error=False).data_address
     return machine_code
 
 def parseADD(tokens, line_number):
@@ -576,7 +575,7 @@ def parseLOAD(tokens, line_number):
     machine_code = grabRegisterAddress(tokens[0], line_number)
     machine_code += '00_'
 
-    machine_code += interpretBracket(tokens[2:], line_number)[0]
+    machine_code += interpretBracket(tokens[2:], line_number).data_address
     return machine_code
 
 def parseLOADF(tokens, line_number):
@@ -585,8 +584,8 @@ def parseLOADF(tokens, line_number):
     machine_code = grabRegisterAddress(tokens[0], line_number)
 
     results = interpretBracket(tokens[2:], line_number, is_there_register=True, throw_boundry_error=False)
-    machine_code += results[2] #register value
-    machine_code += results[0] #data address
+    machine_code += results.register_value
+    machine_code += results.data_address
     return machine_code
 
 def parseSTORE(tokens, line_number):
@@ -598,12 +597,12 @@ def parseSTORE(tokens, line_number):
     results = interpretBracket(tokens[:comma_index], line_number)
 
     offset = 0
-    if results[1]: # Was there an offset in the brackets?
+    if results.was_address_offset: # Was there an offset in the brackets?
         offset = 2
 
     machine_code = grabRegisterAddress(tokens[4 + offset], line_number)
     machine_code += '00_'
-    machine_code += results[0] #data address
+    machine_code += results.data_address
 
     return machine_code
 
@@ -614,12 +613,12 @@ def parseSTOREF(tokens, line_number):
     results = interpretBracket(tokens[:comma_index], line_number, is_there_register=True)
 
     offset = 0
-    if results[1]:
+    if results.was_address_offset:
         offset = 2
     
     machine_code = grabRegisterAddress(tokens[6 + offset], line_number)
-    machine_code += results[2]
-    machine_code += results[0]
+    machine_code += results.register_value
+    machine_code += results.data_address
 
     return machine_code
 
@@ -768,8 +767,8 @@ def createSubDirectory(filename, force):
 
     # Make the sub-output folder, specific to file name.
     # Will continue to loop until a valid response is given.
-    while not force:
-        if os.path.exists(f'./output/{filename}'):
+    while True:
+        if os.path.exists(f'./output/{filename}') and not force:
             response = input(f'Do you wish to overwrite previously compiled \
 files for {filename} [Y/N]?  ')
             if response.lower() == 'n':
@@ -778,8 +777,11 @@ files for {filename} [Y/N]?  ')
                 raise Exception(string)
             elif response.lower() == 'y':
                 break
-        else:
+        elif not os.path.exists(f'./output/{filename}'):
             os.makedirs(f'./output/{filename}')
+            break
+        else:
+            break
 
     # Files can be overwritten.
     return filename
@@ -865,6 +867,38 @@ def produceException(message='Generic Error', error=True, error_type=None,
 
     return ex_string
 
+def is_path_directory(path):
+    ''' Will return true if the path given is a directory, false if file. '''
+    return os.path.isdir(os.path.dirname(path)) and not os.path.isfile(path)
+
+def catalog_directory_files(path):
+    ''' Given a directory, create a list of all .asm files.'''
+    file_list = []
+    for sub_path in os.listdir(path):
+        if not is_path_directory(sub_path):
+            # File, check for .asm
+            result = check_asm_file_type(sub_path)
+            if result is None:
+                file_list.append(f'{path}{sub_path}')
+    
+    return file_list
+
+def check_asm_file_type(file_path, from_directory=False):
+    ''' Checks if file is of type assembly (.asm).  If not, returns error string. '''
+    file_tree = split_by_filesystem(file_path)
+
+    if file_tree[-1].find('.asm') < 0:
+        return produceException(message='File given is not an assembly file.',
+        error_type='IOError')
+    return None
+
+def split_by_filesystem(file_path):
+    ''' Splits the file by the appropriate folder delimiter. '''
+    if platform.system() is "Windows":
+        return file_path.split('\\')
+    else:
+        return file_path.split('/')
+
 def main(arguments):
     ''' Compiler top-level program.  Contained within main() for reasons. '''
     failed = {}
@@ -874,7 +908,10 @@ def main(arguments):
     for source in arguments.input:
         _branch_destinations = {}
         _variables = {}
-        source = str(source) # Possibly unnecessary casting.
+
+        # Determine if input is a directory.
+        files_to_compile = []
+        source = str(source)
 
         # Strips initial prefix.
         if source[:2] == './' or source[:2] == '.\\':
@@ -882,84 +919,92 @@ def main(arguments):
 
         # Confirm that the file exists.
         if os.path.exists(source) is not True:
-            failed[source] = produceException(message='File given is not valid or does not exist.',
-            error_type='IOError')
+            failed[source] = produceException(message='File/Directory given is not valid or does not exist.',
+            error_type='ArgumentError')
             continue
 
-        # Check if file is of type assembly (.asm).
-        file_tree = None
-        if platform.system() is "Windows":
-            # Need to split the file differently based on filesystem.
-            file_tree = source.split('\\')
+        if is_path_directory(source):
+            files_to_compile = catalog_directory_files(source)
+            if len(files_to_compile) == 0:
+                # no assembly files found
+                failed[source] = produceException(message='Directory given has no assembly file(s) within.',
+                error_type='ArgumentError')
+                continue
         else:
-            file_tree = source.split('/')
+            # singleton file
+            result = check_asm_file_type(source)
+            if result is None:
+                files_to_compile.append(source)
+            else:
+                failed[source] = result
+                continue
 
-        if file_tree[-1].find('.asm') < 0:
-            failed[source] = produceException(message='File given is not an assembly file.',
-            error_type='IOError')
-            continue
+        print(files_to_compile)
 
-        # File is good, go ahead and compile it.
-        status_message = f"========= Compiling <{source}>.. ========="
-        print(status_message)
+        for file_path in files_to_compile:
+            # File is good, go ahead and compile it.
+            status_message = f"========= Compiling <{file_path}>.. ========="
+            print(status_message)
 
-        # Opens file with read permissions and returns string.
-        file_string = openFile(open(file=source, mode='r'))
+            # Opens file with read permissions and returns string.
+            file_string = openFile(open(file=file_path, mode='r'))
 
-        # Present the file to the user.
-        file_lines = file_string.split('\n')
+            # Present the file to the user.
+            file_lines = file_string.split('\n')
 
-        # Introducing, CLI arguments!
-        if arguments.verbose:
-            outputFile(file_lines)
-            print()
-
-        try:
-            # Begin writting to bin file.
-            filename = createSubDirectory(filename=file_tree[-1].split('.')[0],
-                        force=arguments.force)
-
-            bin_file = open(file=f'./output/{filename}/{filename}.bin', mode='w')
-            bin_file.write('=======ASSEMBLY CODE======\n')
-            for line in file_lines:
-                if len(line) > 1:
-                    bin_file.write(line + '\n')
-            bin_file.write('\n')
-
-            # Overwrite file_lines list with no comments.  Also, find .data and .code.
-            file_lines, data_line_number, code_line_number = analyzeFile(file_lines)
-
-            # Obtain the jump, .data, and .code locations.
-            # NOTE: Jumps are stored in _branch_destinations globally.
-            file_lines = findJumpLabels(file_lines, code_line_number)
-
-            # Assign all variables to data addresses.
-            assignVariables(file_lines[data_line_number + 1:code_line_number])
-            
-            # Parse assembly instructions.
-            machine_code = parseCode(file_lines[code_line_number + 1:])
-
+            # Introducing, CLI arguments!
             if arguments.verbose:
-                print(' == == MACHINE CODE == == ')
-                print(machine_code + '\n')
+                outputFile(file_lines)
+                print()
 
-            # Write machine code to bin file.
-            bin_file.write('=======MACHINE CODE=======\n')
-            bin_file.write(machine_code)
+            try:
+                # Begin writting to bin file.
+                bin_file = None
+                filename = createSubDirectory(filename=split_by_filesystem(file_path)[-1].split('.')[0],
+                            force=arguments.force)
 
-            # Convert machine code to Verilog HDL for programming the i281 microprocessor.
-            file_location = f'./output/{filename}/'
-            writeVerilogFiles(machine_code, file_location)
+                bin_file = open(file=f'./output/{filename}/{filename}.bin', mode='w')
+                bin_file.write('=======ASSEMBLY CODE======\n')
+                for line in file_lines:
+                    if len(line) > 1:
+                        bin_file.write(line + '\n')
+                bin_file.write('\n')
 
-            # State file is complete.
-            print(f"File ({source}) has successfully compiled.")
-            succeeded[source] = filename
-        except Exception as ex:
-            # This will also catch all programming errors as well.
-            failed[source] = str(ex)
-        finally:
-            print('=' * len(status_message))
-            bin_file.close()
+                # Overwrite file_lines list with no comments.  Also, find .data and .code.
+                file_lines, data_line_number, code_line_number = analyzeFile(file_lines)
+
+                # Obtain the jump, .data, and .code locations.
+                # NOTE: Jumps are stored in _branch_destinations globally.
+                file_lines = findJumpLabels(file_lines, code_line_number)
+
+                # Assign all variables to data addresses.
+                assignVariables(file_lines[data_line_number + 1:code_line_number])
+                
+                # Parse assembly instructions.
+                machine_code = parseCode(file_lines[code_line_number + 1:])
+
+                if arguments.verbose:
+                    print(' == == MACHINE CODE == == ')
+                    print(machine_code + '\n')
+
+                # Write machine code to bin file.
+                bin_file.write('=======MACHINE CODE=======\n')
+                bin_file.write(machine_code)
+
+                # Convert machine code to Verilog HDL for programming the i281 microprocessor.
+                file_location = f'./output/{filename}/'
+                writeVerilogFiles(machine_code, file_location)
+
+                # State file is complete.
+                print(f"File ({file_path}) has successfully compiled.")
+                succeeded[file_path] = filename
+            except Exception as ex:
+                # This will also catch all programming errors as well.
+                failed[file_path] = str(ex)
+            finally:
+                print('=' * len(status_message))
+                if bin_file:
+                    bin_file.close()
 
     # OUTPUT STRUCTURE:
     #   ./output
@@ -997,4 +1042,4 @@ if not arguments.version:
 else:
     # NOTE: Make version number changes here when possible.
     #       Ensure it reflects the manpage number as well.
-    print('i281Compiler -- Version: 0.4.7')
+    print('i281Compiler -- Version: 0.4.8')
