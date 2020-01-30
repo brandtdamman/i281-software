@@ -106,7 +106,7 @@ def outputFile(file_lines):
 def analyzeFile(file_lines):
     ''' Removes the comments from the program, so that \
         .data and .code remain to be found. '''
-    import re
+#    import re
     
     file_string = ''
     data_line_number = -1
@@ -114,8 +114,8 @@ def analyzeFile(file_lines):
     line_number = 0
 
     # Regular Expression set of all legal characters. 2020-01-05
-    expression = "[a-zA-Z0-9\s?\[\]{},.:]+"
-    expression_program = re.compile(expression)
+#    expression = "[a-zA-Z0-9\s?\[\]{},.:]+"
+#    expression_program = re.compile(expression)
 
     for line in file_lines:
         # Necessary for error handling.
@@ -143,11 +143,11 @@ def analyzeFile(file_lines):
                 line += '\n'
 
             # Perform a regular expression check to find illegal characters.
-            result = expression_program.fullmatch(line)
-            if result is None:
-                string = produceException(message='Illegal character found', error_type='ValueError',
-                                        line_number=line_number, original_line=original_line)
-                raise Exception(string)
+#            result = expression_program.fullmatch(line)
+#            if result is None:
+#                string = produceException(message='Illegal character found', error_type='ValueError',
+#                                        line_number=line_number, original_line=original_line)
+#                raise Exception(string)
 
             # Syntax check.  Make sure there is at least a code section.
             if line.find('.data') > -1:
@@ -284,7 +284,7 @@ def assignVariables(data_lines):
 
         if len(tokens) > 3:
             # Byte array.
-            if confirmComma(tokens[-1]):
+            if tokens[-1] == ',':
                 # TODO: Change to warning message.
                 string = produceException(message='Trailing comma found in array declaration.',
                                         error_type='ValueError', line_number=line_number)
@@ -294,17 +294,18 @@ def assignVariables(data_lines):
             
             # Ensure all values are of type integer.
             for value in values:
-                if value is not int:
+                if not value.isalnum():
                     temp_message = 'ISA does not support non-integer values.'
-                    if value == '?':
-                        temp_message = 'ISA does not support undefined array values.'
-                        
-                    string = produceException(message=temp_message, error_type='ValueError',
-                                            line_number=line_number)
-                    raise Exception(string)
+                    if not value == '?':
+                        string = produceException(message=temp_message, error_type='ValueError',
+                                                line_number=line_number)
+                        raise Exception(string)
 
             # Assign variable to global container with data address.
-            _variables[tokens[0]] = [values, data_address_number]
+            if value == '?':
+                _variables[tokens[0]] = [0, data_address_number]
+            else:
+                _variables[tokens[0]] = [values, data_address_number]
             data_address_number += len(values)
         else:
             # Single value variable.
@@ -314,6 +315,7 @@ def assignVariables(data_lines):
             elif tokens[2].isdigit():
                 _variables[tokens[0]] = [int(tokens[2]), data_address_number]
             else:
+                print(tokens[2])
                 string = produceException(message='Data value is neither undefined nor defined.',
                                         error_type='ValueError', line_number=line_number)
                 raise Exception(string)
@@ -322,6 +324,7 @@ def assignVariables(data_lines):
 
         global _DMEM_LIMIT
         if len(_variables) > _DMEM_LIMIT:
+            print(_variables)
             # Must not exceed memory limit.
             string = produceException(message='Data variables exceed DMEM.',
                                     error_type='MemoryOverflow')
@@ -445,9 +448,11 @@ def confirmValidAddress(address, throw_boundry_error, line_number):
             raise Exception(string)
         else:
             # Sound the horn.
-            string = produceException(message='Data value is neither undefined nor defined.',
-                                    error=False, line_number=line_number)
-            raise Exception(string)
+            print(address)
+            # TODO: Raise WARNING
+            #string = produceException(message='Address might be out of bounds of DMEM',
+            #                        error=False, line_number=line_number)
+            #raise Exception(string)
 
 def findDataAddress(address_token, line_number):
     ''' Navigates the current variables for a data address. '''
@@ -905,10 +910,8 @@ def main(arguments):
     succeeded = {}
 
     # For all programs to be compiled...
+    global _branch_destinations, _variables
     for source in arguments.input:
-        _branch_destinations = {}
-        _variables = {}
-
         # Determine if input is a directory.
         files_to_compile = []
         source = str(source)
@@ -942,6 +945,9 @@ def main(arguments):
         print(files_to_compile)
 
         for file_path in files_to_compile:
+            _branch_destinations = {}
+            _variables = {}
+
             # File is good, go ahead and compile it.
             status_message = f"========= Compiling <{file_path}>.. ========="
             print(status_message)
@@ -1042,4 +1048,4 @@ if not arguments.version:
 else:
     # NOTE: Make version number changes here when possible.
     #       Ensure it reflects the manpage number as well.
-    print('i281Compiler -- Version: 0.4.8')
+    print('i281Compiler -- Version: 0.4.9')
