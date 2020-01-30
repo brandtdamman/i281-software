@@ -315,7 +315,7 @@ def assignVariables(data_lines):
             elif tokens[2].isdigit():
                 _variables[tokens[0]] = [int(tokens[2]), data_address_number]
             else:
-                print(tokens[2])
+#                print(tokens[2])
                 string = produceException(message='Data value is neither undefined nor defined.',
                                         error_type='ValueError', line_number=line_number)
                 raise Exception(string)
@@ -324,7 +324,7 @@ def assignVariables(data_lines):
 
         global _DMEM_LIMIT
         if len(_variables) > _DMEM_LIMIT:
-            print(_variables)
+#            print(_variables)
             # Must not exceed memory limit.
             string = produceException(message='Data variables exceed DMEM.',
                                     error_type='MemoryOverflow')
@@ -448,11 +448,12 @@ def confirmValidAddress(address, throw_boundry_error, line_number):
             raise Exception(string)
         else:
             # Sound the horn.
-            print(address)
+            #print(address)
             # TODO: Raise WARNING
             #string = produceException(message='Address might be out of bounds of DMEM',
             #                        error=False, line_number=line_number)
             #raise Exception(string)
+            return
 
 def findDataAddress(address_token, line_number):
     ''' Navigates the current variables for a data address. '''
