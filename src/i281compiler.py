@@ -433,8 +433,8 @@ def interpretBracket(tokens, line_number, left_bracket='[', right_bracket=']',
     #   but it also increases readability.
     results = SimpleNamespace()
     setattr(results, 'data_address', integerToBinary(current_offset))
-    setattr(results, 'was_address_offset', was_address_offset);
-    setattr(results, 'register_value', register_value);
+    setattr(results, 'was_address_offset', was_address_offset)
+    setattr(results, 'register_value', register_value)
     return results
     #return [integerToBinary(current_offset), was_address_offset, register_value]
 
